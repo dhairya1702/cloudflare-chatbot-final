@@ -1,6 +1,6 @@
 import { useState } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 function Register() {
   const [username, setUsername] = useState("");
@@ -45,7 +45,7 @@ function Register() {
       {message && <p>{message}</p>}
       <p>
         Already have an account?{" "}
-        <a href="/" style={{ color: "#007bff" }}>Login</a>
+        <Link to="/" style={{ color: "#007bff" }}>Login</Link>
       </p>
     </div>
   );
