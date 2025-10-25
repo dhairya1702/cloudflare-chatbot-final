@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { API_BASE } from "../config";
 
 function Chat() {
   const [messages, setMessages] = useState([]);
@@ -14,12 +13,10 @@ function Chat() {
   const token = localStorage.getItem("token");
   const API_BASE = "https://backend.dhairyalalwani.workers.dev";
 
-  // Redirect if not logged in
   useEffect(() => {
     if (!token) navigate("/");
   }, [token, navigate]);
 
-  // Fetch messages
   useEffect(() => {
     const fetchMessages = async () => {
       try {
@@ -48,7 +45,6 @@ function Chat() {
         { message: input },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
       const botMessage = { role: "bot", content: res.data.reply };
       setMessages((prev) => [...prev, botMessage]);
     } catch (err) {

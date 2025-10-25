@@ -1,7 +1,6 @@
 import { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { API_BASE } from "../config";
 
 function Login() {
   const [username, setUsername] = useState("");
@@ -12,10 +11,10 @@ function Login() {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post("${API_BASE}/login", {
-        username,
-        password,
-      });
+      const res = await axios.post(
+        "https://backend.dhairyalalwani.workers.dev/login",
+        { username, password }
+      );
 
       const token = res.data.token;
       if (token) {
