@@ -8,7 +8,7 @@ export default {
     const method = request.method;
     const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
 
-    // Allow both local + production origins
+    // 🛡️ CORS setup
     const allowedOrigin = request.headers.get("Origin");
     const CORS_ORIGIN =
       allowedOrigin === "https://cloudflare-chatbot-six.vercel.app" ||
@@ -39,7 +39,7 @@ export default {
       });
     }
 
-    // JWT verification helper
+    // 🔐 JWT verification helper
     const verifyAuth = (req) => {
       const auth = req.headers.get("Authorization");
       if (!auth) return null;
@@ -51,7 +51,29 @@ export default {
       }
     };
 
-    // Register
+    // 🧪 Debug Route — test Groq connectivity
+    if (url.pathname === "/test-groq" && method === "GET") {
+      try {
+        const llmRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${env.GROQ_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: "llama3-8b-8192",
+            messages: [{ role: "user", content: "Hello from test-groq!" }],
+          }),
+        });
+
+        const data = await llmRes.json();
+        return send(200, { message: "Groq connection successful ✅", data });
+      } catch (err) {
+        return send(500, { error: "Failed to reach Groq", details: err.message });
+      }
+    }
+
+    // 👤 Register user
     if (url.pathname === "/register" && method === "POST") {
       const { username, password } = await request.json();
       if (!username || !password) return send(400, { error: "Missing fields" });
@@ -62,7 +84,7 @@ export default {
       return send(200, { message: "User registered successfully" });
     }
 
-    // Login
+    // 🔑 Login
     if (url.pathname === "/login" && method === "POST") {
       const { username, password } = await request.json();
       if (!username || !password) return send(400, { error: "Missing fields" });
@@ -74,6 +96,7 @@ export default {
         .limit(1);
 
       if (error || !users?.length) return send(401, { error: "Invalid username or password" });
+
       const valid = await bcrypt.compare(password, users[0].password_hash);
       if (!valid) return send(401, { error: "Invalid username or password" });
 
@@ -81,7 +104,7 @@ export default {
       return send(200, { token });
     }
 
-    // Chat (Groq default + optional MCP)
+    // 💬 Chat endpoint
     if (url.pathname === "/chat" && method === "POST") {
       const auth = verifyAuth(request);
       if (!auth) return send(401, { error: "Unauthorized" });
@@ -98,7 +121,7 @@ export default {
       let reply = "";
       let usedMCP = false;
 
-      // Try MCP first
+      // 🔌 Try MCP (internal binding first, fallback to public URL)
       const { data: connections } = await supabase
         .from("mcp_connections")
         .select("*")
@@ -106,27 +129,46 @@ export default {
         .limit(1);
 
       if (connections?.length) {
+        const { server_url, api_key } = connections[0];
+        const mcpPayload = { query: message };
+
         try {
-          const { server_url, api_key } = connections[0];
-          const mcpRes = await fetch(server_url, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${api_key}`,
-            },
-            body: JSON.stringify({ query: message }),
-          });
+          let mcpRes;
+          if (env.MCP_SERVICE) {
+            // ✅ internal service binding call (preferred)
+            mcpRes = await env.MCP_SERVICE.fetch("https://internal/invoke", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${api_key}`,
+              },
+              body: JSON.stringify(mcpPayload),
+            });
+          } else {
+            // 🌐 fallback to HTTPS
+            mcpRes = await fetch(`${server_url}/invoke`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${api_key}`,
+              },
+              body: JSON.stringify(mcpPayload),
+            });
+          }
+
           if (mcpRes.ok) {
             const mcpData = await mcpRes.json();
-            reply = mcpData.reply || JSON.stringify(mcpData);
+            reply = `🔧 MCP (${mcpData.tool}) says: ${mcpData.output}`;
             usedMCP = true;
+          } else {
+            console.error("MCP request failed:", await mcpRes.text());
           }
         } catch (err) {
           console.error("MCP failed:", err);
         }
       }
 
-      // Fallback to Groq LLM
+      // 🧠 Fallback to Groq LLM
       if (!usedMCP) {
         try {
           const llmRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -157,7 +199,7 @@ export default {
       return send(200, { reply });
     }
 
-    // Fetch messages
+    // 📜 Fetch messages
     if (url.pathname === "/messages" && method === "GET") {
       const auth = verifyAuth(request);
       if (!auth) return send(401, { error: "Unauthorized" });
@@ -172,7 +214,7 @@ export default {
       return send(200, { messages: data });
     }
 
-    // Connect MCP
+    // 🌐 Connect MCP
     if (url.pathname === "/connect-mcp" && method === "POST") {
       const auth = verifyAuth(request);
       if (!auth) return send(401, { error: "Unauthorized" });
@@ -188,6 +230,7 @@ export default {
       return send(200, { message: "MCP connected successfully" });
     }
 
+    // ❌ Default 404
     return send(404, { error: "Route not found" });
   },
 };
