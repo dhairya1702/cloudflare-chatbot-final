@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { marked } from "marked";
+
 
 function Chat() {
   const [messages, setMessages] = useState([]);
@@ -12,6 +14,11 @@ function Chat() {
 
   const token = localStorage.getItem("token");
   const API_BASE = "https://backend.dhairyalalwani.workers.dev";
+
+  // 🔹 Composio Configs
+  const COMPOSIO_WORKSPACE_ID = "pr_wrEqsNVqvCZA"; // replace with your actual workspace ID
+  const COMPOSIO_AUTH_CONFIG_ID = "ac_FFJUOYasTHf4"; // from Gmail Auth Config
+  const COMPOSIO_REDIRECT = `${API_BASE}/connect/composio/callback`;
 
   useEffect(() => {
     if (!token) navigate("/");
@@ -30,6 +37,18 @@ function Chat() {
     };
     fetchMessages();
   }, []);
+
+  useEffect(() => {
+    // only auto-scroll once, on initial load
+    const chatBox = document.querySelector("#chat-box");
+    if (chatBox && messages.length > 0) {
+      chatBox.scrollTo({
+        top: chatBox.scrollHeight,
+        behavior: "smooth", // smooth scroll down
+      });
+    }
+  }, [messages.length]); // runs once when messages first load
+
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -66,6 +85,24 @@ function Chat() {
     }
   };
 
+  // 🔹 Gmail Connect
+  const handleConnectGmail = async () => {
+    try {
+      // open Gmail OAuth flow in a new tab
+      window.open(
+        "https://backend.dhairyalalwani.workers.dev/auth/login",
+        "_blank",
+        "noopener,noreferrer"
+      );
+    } catch (err) {
+      console.error("Failed to start Gmail OAuth:", err);
+      alert("Couldn't start Gmail connection");
+    }
+  };
+
+
+
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     navigate("/");
@@ -73,37 +110,13 @@ function Chat() {
 
   return (
     <div style={styles.container}>
-      <h2>Chatbot 🤖</h2>
-      <div style={styles.chatBox}>
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            style={{
-              ...styles.message,
-              alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
-              backgroundColor:
-                msg.role === "user" ? "#007bff" : "#e5e5ea",
-              color: msg.role === "user" ? "white" : "black",
-            }}
-          >
-            {msg.content}
-          </div>
-        ))}
-      </div>
+  <h2>Chatbot 🤖</h2>
 
-      <form onSubmit={handleSend} style={styles.form}>
-        <input
-          type="text"
-          placeholder="Type your message..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          style={styles.input}
-        />
-        <button type="submit" style={styles.button}>Send</button>
-      </form>
-
+  <div style={styles.mainContent}>
+    {/* Left Sidebar */}
+    <div style={styles.sidebar}>
       <div style={styles.mcpSection}>
-        <h4>🔌 Connect MCP Server</h4>
+        <h4>🔌 Connect MCP</h4>
         <form onSubmit={handleConnectMCP} style={styles.mcpForm}>
           <input
             type="text"
@@ -124,8 +137,47 @@ function Chat() {
         {mcpMessage && <p>{mcpMessage}</p>}
       </div>
 
+      <div style={styles.mcpSection}>
+        <h4>📧 Gmail</h4>
+        <button onClick={handleConnectGmail} style={styles.button}>Connect Gmail</button>
+      </div>
+
       <button onClick={handleLogout} style={styles.logout}>Logout</button>
     </div>
+
+    {/* Chat Area */}
+    <div style={styles.chatContainer}>
+      <div id="chat-box" style={styles.chatBox}>
+        {messages.map((msg, i) => (
+          <div
+            key={i}
+            style={{
+              ...styles.message,
+              alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
+              backgroundColor: msg.role === "user" ? "#007bff" : "#e5e5ea",
+              color: msg.role === "user" ? "white" : "black",
+            }}
+            dangerouslySetInnerHTML={{
+              __html: marked.parse(msg.content || ""),
+            }}
+          />
+        ))}
+      </div>
+
+      <form onSubmit={handleSend} style={styles.form}>
+        <input
+          type="text"
+          placeholder="Type your message..."
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          style={styles.input}
+        />
+        <button type="submit" style={styles.button}>Send</button>
+      </form>
+    </div>
+  </div>
+</div>
+
   );
 }
 
@@ -133,26 +185,33 @@ const styles = {
   container: {
     display: "flex",
     flexDirection: "column",
+    justifyContent: "center",
+    padding: "0px 40px",
     alignItems: "center",
-    padding: "20px",
-    fontFamily: "Arial",
+    minHeight: "100vh",          // full page height
+    width: "100vw",              // full page width
+    backgroundColor: "#1e1e1e",  // nice dark backdrop
+    color: "white",
+    //padding: "0px 20px",
+    boxSizing: "border-box",
+    overflowY: "auto",           // allows scrolling
   },
   chatBox: {
     display: "flex",
     flexDirection: "column",
-    width: "100%",
-    maxWidth: "500px",
-    height: "400px",
-    border: "1px solid #ccc",
+    width: "90%",
+    maxWidth: "1000px",
+    height: "80vh",
+    border: "1px solid #333",
     borderRadius: "8px",
     padding: "10px",
     overflowY: "auto",
-    marginBottom: "15px",
-    backgroundColor: "#f9f9f9",
+    marginBottom: "20px",
+    backgroundColor: "#2a2a2a",  // matches dark theme
   },
   message: {
-    margin: "4px 0",
-    padding: "8px 12px",
+    margin: "6px 0",
+    padding: "1px 10px",
     borderRadius: "16px",
     maxWidth: "80%",
     wordWrap: "break-word",
@@ -161,16 +220,19 @@ const styles = {
     display: "flex",
     gap: "8px",
     width: "100%",
-    maxWidth: "500px",
+    maxWidth: "600px",
+    marginBottom: "30px",
   },
   input: {
     flex: 1,
-    padding: "8px",
+    padding: "10px",
     borderRadius: "5px",
-    border: "1px solid #ccc",
+    border: "1px solid #555",
+    backgroundColor: "#121212",
+    color: "white",
   },
   button: {
-    padding: "8px 12px",
+    padding: "10px 16px",
     borderRadius: "5px",
     backgroundColor: "#007bff",
     color: "white",
@@ -192,10 +254,41 @@ const styles = {
     backgroundColor: "red",
     color: "white",
     border: "none",
-    padding: "8px 12px",
+    padding: "10px 16px",
     borderRadius: "5px",
     cursor: "pointer",
   },
+  mainContent: {
+  display: "flex",
+  flexDirection: "row",
+  alignItems: "flex-start",
+  justifyContent: "flex-start",
+  gap: "20px",
+  width: "100%",
+  maxWidth: "1200px",
+  marginLeft: "100px",
+},
+
+sidebar: {
+  display: "flex",
+  flexDirection: "column",
+  gap: "20px",
+  width: "250px",
+  backgroundColor: "#2a2a2a",
+  padding: "1px",
+  borderRadius: "8px",
+  height: "80vh",
+  overflowY: "auto",
+},
+
+chatContainer: {
+  display: "flex",
+  flexDirection: "column",
+  flex: 1,
+  alignItems: "center",
+},
+
 };
+
 
 export default Chat;
