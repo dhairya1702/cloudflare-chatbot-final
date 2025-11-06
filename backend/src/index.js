@@ -134,10 +134,26 @@ export default {
 	  let usedMCP = false;
 
 	  // Fetch user's connected MCPs
-	  const { data: mcps } = await supabase
+	  let { data: mcps } = await supabase
 		.from("mcp_connections")
 		.select("id, server_url, api_key, name_hint")
 		.eq("user_id", auth.user_id);
+	  // Always push Gmail + Exa by default
+		mcps = mcps || [];
+		mcps.push(
+		  {
+			id: "internal-gmail",
+			server_url: "internal://gmail",
+			api_key: null,
+			name_hint: "gmail",
+		  },
+		  {
+			id: "internal-exa",
+			server_url: "https://api.exa.ai",
+			api_key: env.EXA_API_KEY,
+			name_hint: "exa",
+		  }
+		);
 
 	  console.log("🔌 [MCP] Found", mcps?.length || 0, "connected MCPs");
 
@@ -502,7 +518,7 @@ export default {
       const params = new URLSearchParams({
         client_id: env.GOOGLE_CLIENT_ID,
 
-		redirect_uri: "http://localhost:5173/auth/callback",
+		redirect_uri: "https://cloudflare-chatbot-six.vercel.app/auth/callback",
         response_type: "code",
         access_type: "offline",
         prompt: "consent",
@@ -535,7 +551,7 @@ export default {
 			code,
 			client_id: env.GOOGLE_CLIENT_ID,
 			client_secret: env.GOOGLE_CLIENT_SECRET,
-			redirect_uri: "http://localhost:5173/auth/callback", // 👈 for local testing
+			redirect_uri: "https://cloudflare-chatbot-six.vercel.app/auth/callback", // 👈 for local testing
 			grant_type: "authorization_code",
 		  }),
 		});
